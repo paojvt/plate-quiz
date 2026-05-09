@@ -563,9 +563,9 @@
 
     // 3. Fill choices with these similar-letter cities first
     while (choices.length < 4 && similarPlates.length > 0) {
-        let randomIndex = Math.floor(Math.random() * similarPlates.length);
+        let randomindex = Math.floor(Math.random() * similarPlates.length);
         // Remove from list so we don't pick the same distractor twice
-        let randomCity = similarPlates.splice(randomIndex, 1)[0].city;
+        let randomCity = similarPlates.splice(randomindex, 1)[0].city;
         if (!choices.includes(randomCity)) {
             choices.push(randomCity);
         }
