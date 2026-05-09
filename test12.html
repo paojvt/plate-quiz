@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Kennzeichen Profi-Quiz</title>
+<!-- Makes the app full-screen on iPhone -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kennzeichen Quiz">
+
+<!-- Ensures the zoom is correct on all mobile devices -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">    
+
+<style>
+        body { font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background-color: #2c3e50; color: white; margin: 0; }
+        #game-card { background: #34495e; padding: 25px; border-radius: 15px; text-align: center; width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+        .score-row { display: flex; justify-content: space-between; font-size: 0.8rem; color: #bdc3c7; margin-bottom: 5px; }
+        .progress-container { background: #2c3e50; height: 8px; border-radius: 4px; margin-bottom: 20px; overflow: hidden; }
+        #progress-bar { background: #3498db; width: 0%; height: 100%; transition: 0.3s; }
+
+        /* THE PLATE */
+        .plate { background: white; color: black; font-size: 3.5rem; font-weight: bold; padding: 10px 20px; border-radius: 5px; border: 4px solid black; display: inline-block; margin-bottom: 20px; min-width: 140px; position: relative; transition: 0.2s; }
+        .plate::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 12px; background: #003399; }
+
+        /* THE ANIMATIONS */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        @keyframes glow {
+            0% { box-shadow: 0 0 0px #2ecc71; }
+            50% { box-shadow: 0 0 20px #2ecc71; border-color: #2ecc71; }
+            100% { box-shadow: 0 0 0px #2ecc71; }
+        }
+        .animate-shake { animation: shake 0.4s ease-in-out; }
+        .animate-glow { animation: glow 0.8s ease-in-out; }
+
+        .options { display: grid; gap: 12px; }
+        button { background: #ecf0f1; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; color: #2c3e50; font-size: 1rem; transition: 0.2s; }
+        button:hover:not(:disabled) { background: #bdc3c7; }
+        button:disabled { opacity: 0.7; cursor: default; }
+        #feedback { margin-top: 15px; height: 24px; font-weight: bold; font-size: 1.1rem; }
+        .hidden { display: none; }
+        .restart-btn { background: #27ae60; color: white; margin-top: 15px; width: 100%; }
+    
+.high-score-label {
+    font-size: 0.7rem;
+    color: #f1c40f; /* Gold color */
+    margin-top: 4px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+</style>
+</head>
+<body>
+
+<div id="game-card">
+    <!-- 1. MAIN MENU -->
+    <div id="menu-area">
+        <h2 style="color: #f1c40f;">Kennzeichen App</h2>
+        <button class="restart-btn" onclick="startQuiz()">Spiel Starten</button>
+        <button class="restart-btn" style="background: #3498db;" onclick="openSearch()">Kennzeichen Suchen</button>
+        <div id="high-score-display" class="high-score-label" style="margin-top:20px;">Best: 0%</div>
+    </div>
+
+    <!-- 2. SEARCH AREA -->
+    <div id="search-area" class="hidden">
+        <h3>Suche</h3>
+        <input type="text" id="search-input" placeholder="Code eingeben (z.B. AA)..." 
+               oninput="handleSearch()" 
+               style="width: 80%; padding: 10px; border-radius: 5px; border: none; font-size: 1.2rem; text-transform: uppercase;">
+        <div id="search-result" style="margin-top: 20px; font-size: 1.5rem; min-height: 50px; font-weight: bold;"></div>
+        <button class="restart-btn" style="background: #7f8c8d;" onclick="showMenu()">Zurück zum Menü</button>
+    </div>
+
+    <!-- 3. QUIZ AREA (Same as before) -->
+    <div id="quiz-area" class="hidden">
+    <!-- Add this Exit button at the top -->
+    <div style="text-align: right; margin-bottom: 10px;">
+        <button onclick="showMenu()" style="background: transparent; color: #e74c3c; padding: 5px 10px; font-size: 0.8rem; border: 1px solid #e74c3c;">✕ Abbrechen</button>
+    </div>
+
+    <div class="score-row">
+        <span>Frage <span id="q-num">1</span>/20</span>
+        <div style="text-align: right;">Score: <span id="percent">0</span>%</div>
+    </div>
+    <!-- ... rest of your quiz area code ... -->
+</div>
+        
+
+
+
+            <div class="score-row">
+            <span>Frage <span id="q-num">1</span>/20</span>
+            <div style="text-align: right;">Score: <span id="percent">0</span>%</div>
+        </div>
+        <div class="progress-container"><div id="progress-bar"></div></div>
+        <div class="plate" id="plate-display">--</div>
+        <div class="options" id="options-container"></div>
+        <div id="feedback"></div>
+    </div>
+
+    <!-- 4. RESULTS AREA -->
+    <div id="results-area" class="hidden">
+        <h2 style="color: #f1c40f;">Fertig!</h2>
+        <p>Ergebnis: <span id="final-correct">0</span> / 20</p>
+        <button class="restart-btn" onclick="showMenu()">Hauptmenü</button>
+    </div>
+</div>
+
+<script>
+    const plates = [
+  { "code": "AA", "city": "Aalen (Ostalbkreis)", "state": "Baden-Württemberg" },
+  { "code": "AD", "city": "Adf (Historical/Rare)", "state": "Baden-Württemberg" },
+  { "code": "BAD", "city": "Baden-Baden", "state": "Baden-Württemberg" },
+  { "code": "BB", "city": "Böblingen", "state": "Baden-Württemberg" },
+  { "code": "BC", "city": "Biberach", "state": "Baden-Württemberg" },
+  { "code": "BCH", "city": "Buchen (Odenwald)", "state": "Baden-Württemberg" },
+  { "code": "BK", "city": "Backnang (Rems-Murr-Kreis)", "state": "Baden-Württemberg" },
+  { "code": "BL", "city": "Balingen (Zollernalbkreis)", "state": "Baden-Württemberg" },
+  { "code": "BSL", "city": "Bruchsal", "state": "Baden-Württemberg" },
+  { "code": "CW", "city": "Calw", "state": "Baden-Württemberg" },
+  { "code": "EM", "city": "Emmendingen", "state": "Baden-Württemberg" },
+  { "code": "ES", "city": "Esslingen", "state": "Baden-Württemberg" },
+  { "code": "FDS", "city": "Freudenstadt", "state": "Baden-Württemberg" },
+  { "code": "FN", "city": "Friedrichshafen (Bodenseekreis)", "state": "Baden-Württemberg" },
+  { "code": "FR", "city": "Freiburg im Breisgau", "state": "Baden-Württemberg" },
+  { "code": "FT", "city": "Frankenthal (historical used in BW)", "state": "Baden-Württemberg" },
+  { "code": "GD", "city": "Schwäbisch Gmünd", "state": "Baden-Württemberg" },
+  { "code": "GP", "city": "Göppingen", "state": "Baden-Württemberg" },
+  { "code": "HD", "city": "Heidelberg", "state": "Baden-Württemberg" },
+  { "code": "HEI", "city": "Heidenheim", "state": "Baden-Württemberg" },
+  { "code": "HN", "city": "Heilbronn", "state": "Baden-Württemberg" },
+  { "code": "HCH", "city": "Hechingen", "state": "Baden-Württemberg" },
+  { "code": "KA", "city": "Karlsruhe", "state": "Baden-Württemberg" },
+  { "code": "KN", "city": "Konstanz", "state": "Baden-Württemberg" },
+  { "code": "KÜN", "city": "Künzelsau (Hohenlohekreis)", "state": "Baden-Württemberg" },
+  { "code": "LÖ", "city": "Lörrach", "state": "Baden-Württemberg" },
+  { "code": "LB", "once": "Ludwigsburg", "state": "Baden-Württemberg" },
+  { "code": "LEO", "city": "Leonberg", "state": "Baden-Württemberg" },
+  { "code": "MA", "city": "Mannheim", "state": "Baden-Württemberg" },
+  { "code": "MÜL", "city": "Müllheim", "state": "Baden-Württemberg" },
+  { "code": "MOS", "city": "Mosbach (Neckar-Odenwald-Kreis)", "state": "Baden-Württemberg" },
+  { "code": "NT", "city": "Nürtingen", "state": "Baden-Württemberg" },
+  { "code": "OG", "city": "Offenburg (Ortenaukreis)", "state": "Baden-Württemberg" },
+  { "code": "OR", "city": "Ortenaukreis", "state": "Baden-Württemberg" },
+  { "code": "RA", "city": "Rastatt", "state": "Baden-Württemberg" },
+  { "code": "RV", "city": "Ravensburg", "state": "Baden-Württemberg" },
+  { "code": "RW", "city": "Rottweil", "state": "Baden-Württemberg" },
+  { "code": "S", "city": "Stuttgart", "state": "Baden-Württemberg" },
+  { "code": "SHA", "city": "Schwäbisch Hall", "state": "Baden-Württemberg" },
+  { "code": "SIG", "city": "Sigmaringen", "state": "Baden-Württemberg" },
+  { "code": "TBB", "city": "Tauberbischofsheim (Main-Tauber-Kreis)", "state": "Baden-Württemberg" },
+  { "code": "TÜ", "city": "Tübingen", "state": "Baden-Württemberg" },
+  { "code": "TT", "city": "Tettnang", "state": "Baden-Württemberg" },
+  { "code": "UL", "city": "Ulm", "state": "Baden-Württemberg" },
+  { "code": "VAI", "city": "Vaihingen", "state": "Baden-Württemberg" },
+  { "code": "VS", "city": "Villingen-Schwenningen (Schwarzwald-Baar-Kreis)", "state": "Baden-Württemberg" },
+  { "code": "WN", "city": "Waiblingen (Rems-Murr-Kreis)", "state": "Baden-Württemberg" },
+  { "code": "WNG", "city": "Waiblingen (Legacy)", "state": "Baden-Württemberg" },
+  { "code": "WT", "city": "Waldshut-Tiengen", "state": "Baden-Württemberg" },
+  { "code": "A", "city": "Augsburg", "state": "Bayern" },
+  { "code": "AB", "city": "Aschaffenburg", "state": "Bayern" },
+  { "code": "AIC", "city": "Aichach-Friedberg", "state": "Bayern" },
+  { "code": "AN", "city": "Ansbach", "state": "Bayern" },
+  { "code": "AS", "city": "Amberg-Sulzbach", "state": "Bayern" },
+  { "code": "AÖ", "city": "Altötting", "state": "Bayern" },
+  { "code": "BA", "city": "Bamberg", "state": "Bayern" },
+  { "code": "BT", "city": "Bayreuth", "state": "Bayern" },
+  { "code": "CO", "city": "Coburg", "state": "Bayern" },
+  { "code": "DAH", "city": "Dachau", "state": "Bayern" },
+  { "code": "DEG", "city": "Deggendorf", "state": "Bayern" },
+  { "code": "Dillingen", "city": "DLG", "state": "Bayern" },
+  { "code": "DON", "city": "Donau-Ries", "state": "Bayern" },
+  { "code": "EBE", "city": "Ebersberg", "state": "Bayern" },
+  { "code": "ED", "city": "Erding", "state": "Bayern" },
+  { "code": "ER", "city": "Erlangen", "state": "Bayern" },
+  { "code": "ERH", "city": "Erlangen-Höchstadt", "state": "Bayern" },
+  { "code": "FFB", "city": "Fürstenfeldbruck", "state": "Bayern" },
+  { "code": "FS", "city": "Freising", "state": "Bayern" },
+  { "code": "FÜ", "city": "Fürth", "state": "Bayern" },
+  { "code": "GAP", "city": "Garmisch-Partenkirchen", "state": "Bayern" },
+  { "code": "GZ", "city": "Günzburg", "state": "Bayern" },
+  { "code": "HO", "city": "Hof", "state": "Bayern" },
+  { "code": "IN", "city": "Ingolstadt", "state": "Bayern" },
+  { "code": "KEH", "city": "Kelheim", "state": "Bayern" },
+  { "code": "KF", "city": "Kaufbeuren", "state": "Bayern" },
+  { "code": "KG", "city": "Bad Kissingen", "state": "Bayern" },
+  { "code": "LA", "city": "Landshut", "state": "Bayern" },
+  { "code": "LI", "city": "Lindau (Bodensee)", "state": "Bayern" },
+  { "code": "LL", "city": "Landsberg am Lech", "state": "Bayern" },
+  { "code": "M", "city": "München", "state": "Bayern" },
+  { "code": "MB", "city": "Miesbach", "state": "Bayern" },
+  { "code": "MIL", "city": "Miltenberg", "state": "Bayern" },
+  { "code": "N", "city": "Nürnberg", "state": "Bayern" },
+  { "code": "NB", "city": "Neuburg-Schrobenhausen", "state": "Bayern" },
+  { "code": "NM", "city": "Neumarkt in der Oberpfalz", "state": "Bayern" },
+  { "code": "OA", "city": "Oberallgäu", "state": "Bayern" },
+  { "code": "OAL", "city": "Ostallgäu", "state": "Bayern" },
+  { "code": "PA", "city": "Passau", "state": "Bayern" },
+  { "code": "R", "city": "Regensburg", "state": "Bayern" },
+  { "code": "RH", "city": "Roth", "state": "Bayern" },
+  { "code": "RO", "city": "Rosenheim", "state": "Bayern" },
+  { "code": "SR", "city": "Straubing", "state": "Bayern" },
+  { "code": "STA", "city": "Starnberg", "state": "Bayern" },
+  { "code": "SW", "city": "Schweinfurt", "state": "Bayern" },
+  { "code": "TÖL", "city": "Bad Tölz-Wolfratshausen", "state": "Bayern" },
+  { "code": "WEN", "city": "Weiden in der Oberpfalz", "state": "Bayern" },
+  { "code": "WÜ", "city": "Würzburg", "state": "Bayern" },
+  { "code": "WUN", "city": "Wunsiedel", "state": "Bayern" },
+  { "code": "B", "city": "Berlin", "state": "Berlin" },
+  { "code": "BAR", "city": "Barnim (Eberswalde)", "state": "Brandenburg" },
+  { "code": "BRB", "city": "Brandenburg an der Havel", "state": "Brandenburg" },
+  { "code": "CB", "city": "Cottbus", "state": "Brandenburg" },
+  { "code": "EE", "city": "Elbe-Elster (Herzberg)", "state": "Brandenburg" },
+  { "code": "FF", "city": "Frankfurt (Oder)", "state": "Brandenburg" },
+  { "code": "FOR", "city": "Forst (Spree-Neiße)", "state": "Brandenburg" },
+  { "code": "GUB", "city": "Guben (Spree-Neiße)", "state": "Brandenburg" },
+  { "code": "HVL", "city": "Havelland (Rathenow)", "state": "Brandenburg" },
+  { "code": "KW", "city": "Königs Wusterhausen (Dahme-Spreewald)", "state": "Brandenburg" },
+  { "code": "LDS", "city": "Landkreis Dahme-Spreewald (Lübben)", "state": "Brandenburg" },
+  { "code": "LOS", "city": "Landkreis Oder-Spree (Beeskow)", "state": "Brandenburg" },
+  { "code": "MOL", "city": "Märkisch-Oderland (Seelow)", "state": "Brandenburg" },
+  { "code": "OHV", "city": "Oberhavel (Oranienburg)", "state": "Brandenburg" },
+  { "code": "OPR", "city": "Ostprignitz-Ruppin (Neuruppin)", "state": "Brandenburg" },
+  { "code": "OSL", "city": "Oberspreewald-Lausitz (Senftenberg)", "state": "Brandenburg" },
+  { "code": "P", "city": "Potsdam", "state": "Brandenburg" },
+  { "code": "PM", "city": "Potsdam-Mittelmark (Belzig)", "state": "Brandenburg" },
+  { "code": "PR", "city": "Prignitz (Perleberg)", "state": "Brandenburg" },
+  { "code": "SPN", "city": "Spree-Neiße (Forst)", "state": "Brandenburg" },
+  { "code": "TF", "city": "Teltow-Fläming (Luckenwalde)", "state": "Brandenburg" },
+  { "code": "UM", "city": "Uckermark (Prenzlau)", "state": "Brandenburg" },
+  { "code": "HB", "city": "Hansestadt Bremen", "state": "Bremen" },
+  { "code": "HB", "city": "Bremerhaven (Magistrat)", "state": "Bremen" },
+  { "code": "HH", "city": "Hansestadt Hamburg", "state": "Hamburg" },
+  { "code": "DA", "city": "Darmstadt", "state": "Hessen" },
+  { "code": "DI", "city": "Dieburg (Landkreis Darmstadt-Dieburg)", "state": "Hessen" },
+  { "code": "ESW", "city": "Eschwege (Werra-Meißner-Kreis)", "state": "Hessen" },
+  { "code": "F", "city": "Frankfurt am Main", "state": "Hessen" },
+  { "code": "FB", "city": "Friedberg (Wetteraukreis)", "state": "Hessen" },
+  { "code": "FD", "city": "Fulda", "state": "Hessen" },
+  { "code": "GG", "city": "Groß-Gerau", "state": "Hessen" },
+  { "code": "GI", "city": "Gießen", "state": "Hessen" },
+  { "code": "GLA", "city": "Gladenbach (historical/rare)", "state": "Hessen" },
+  { "code": "GN", "city": "Gelnhausen (Main-Kinzig-Kreis)", "state": "Hessen" },
+  { "code": "HEF", "city": "Bad Hersfeld (Hersfeld-Rotenburg)", "state": "Hessen" },
+  { "code": "HG", "city": "Bad Homburg vor der Höhe (Hochtaunuskreis)", "state": "Hessen" },
+  { "code": "HP", "city": "Heppenheim (Bergstraße)", "state": "Hessen" },
+  { "code": "HR", "city": "Homberg (Schwalm-Eder-Kreis)", "state": "Hessen" },
+  { "code": "HU", "city": "Hanau (Main-Kinzig-Kreis)", "state": "Hessen" },
+  { "code": "KB", "city": "Korbach (Waldeck-Frankenberg)", "state": "Hessen" },
+  { "code": "KS", "city": "Kassel", "state": "Hessen" },
+  { "code": "LDK", "city": "Lahn-Dill-Kreis (Wetzlar)", "state": "Hessen" },
+  { "code": "LM", "city": "Limburg an der Lahn (Limburg-Weilburg)", "state": "Hessen" },
+  { "code": "MKK", "city": "Main-Kinzig-Kreis", "state": "Hessen" },
+  { "code": "MR", "city": "Marburg (Marburg-Biedenkopf)", "state": "Hessen" },
+  { "code": "MTK", "city": "Main-Taunus-Kreis (Hofheim)", "state": "Hessen" },
+  { "code": "OF", "city": "Offenbach am Main", "state": "Hessen" },
+  { "code": "REH", "city": "Rehau (historical/rare)", "state": "Hessen" },
+  { "code": "ROD", "city": "Roding (historical/rare)", "state": "Hessen" },
+  { "code": "RT", "city": "Reutlingen (shared with BW, rare in HE)", "state": "Hessen" },
+  { "code": "SWA", "city": "Bad Schwalbach (Rheingau-Taunus-Kreis)", "state": "Hessen" },
+  { "code": "VB", "city": "Vogelsbergkreis (Lauterbach)", "state": "Hessen" },
+  { "code": "WI", "city": "Wiesbaden", "state": "Hessen" },
+  { "code": "WZ", "city": "Wetzlar", "state": "Hessen" },
+  { "code": "ALF", "city": "Alfeld (Leine)", "state": "Niedersachsen" },
+  { "code": "AUR", "city": "Aurich", "state": "Niedersachsen" },
+  { "code": "BRA", "city": "Brake (Unterweser)", "state": "Niedersachsen" },
+  { "code": "BRV", "city": "Bremervörde", "state": "Niedersachsen" },
+  { "code": "BS", "city": "Braunschweig", "state": "Niedersachsen" },
+  { "code": "BÜT", "city": "Bützow (rarely used in NI)", "state": "Niedersachsen" },
+  { "code": "CE", "city": "Celle", "state": "Niedersachsen" },
+  { "code": "CLP", "city": "Cloppenburg", "state": "Niedersachsen" },
+  { "code": "CUX", "city": "Cuxhaven", "state": "Niedersachsen" },
+  { "code": "DAN", "city": "Lüchow-Dannenberg", "state": "Niedersachsen" },
+  { "code": "DEL", "city": "Delmenhorst", "state": "Niedersachsen" },
+  { "code": "DH", "city": "Diepholz", "state": "Niedersachsen" },
+  { "code": "DUD", "city": "Duderstadt", "state": "Niedersachsen" },
+  { "code": "EIN", "city": "Einbeck", "state": "Niedersachsen" },
+  { "code": "EL", "city": "Emsland (Meppen)", "state": "Niedersachsen" },
+  { "code": "EMD", "city": "Emden", "state": "Niedersachsen" },
+  { "code": "FAL", "city": "Fallingbostel (Heidekreis)", "state": "Niedersachsen" },
+  { "code": "GF", "city": "Gifhorn", "state": "Niedersachsen" },
+  { "code": "GÖ", "city": "Göttingen", "state": "Niedersachsen" },
+  { "code": "GS", "city": "Goslar", "state": "Niedersachsen" },
+  { "code": "H", "city": "Hannover", "state": "Niedersachsen" },
+  { "code": "HAM", "city": "Hameln (Hameln-Pyrmont)", "state": "Niedersachsen" },
+  { "code": "HI", "city": "Hildesheim", "state": "Niedersachsen" },
+  { "code": "HK", "city": "Heidekreis (Bad Fallingbostel)", "state": "Niedersachsen" },
+  { "code": "HM", "city": "Hameln-Pyrmont", "state": "Niedersachsen" },
+  { "code": "HMÜ", "city": "Hann. Münden", "state": "Niedersachsen" },
+  { "code": "HOL", "city": "Holzminden", "state": "Niedersachsen" },
+  { "code": "LER", "city": "Leer (Ostfriesland)", "state": "Niedersachsen" },
+  { "code": "LG", "city": "Lüneburg", "state": "Niedersachsen" },
+  { "code": "NI", "city": "Nienburg/Weser", "state": "Niedersachsen" },
+  { "code": "NOH", "city": "Nordhorn (Grafschaft Bentheim)", "state": "Niedersachsen" },
+  { "code": "NOM", "city": "Northeim", "state": "Niedersachsen" },
+  { "code": "ANK", "city": "Anklam (Vorpommern-Greifswald)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "BÜZ", "city": "Bützow (Landkreis Rostock)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "DBR", "city": "Bad Doberan (Landkreis Rostock)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "DM", "city": "Demmin (Mecklenburgische Seenplatte)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "GMN", "city": "Grimmen (Vorpommern-Rügen)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "GÜ", "city": "Güstrow (Landkreis Rostock)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "GZ", "city": "Gadebusch (Nordwestmecklenburg)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "HGW", "city": "Hansestadt Greifswald", "state": "Mecklenburg-Vorpommern" },
+  { "code": "HRO", "city": "Hansestadt Rostock", "state": "Mecklenburg-Vorpommern" },
+  { "code": "HST", "city": "Hansestadt Stralsund", "state": "Mecklenburg-Vorpommern" },
+  { "code": "HWI", "city": "Hansestadt Wismar", "state": "Mecklenburg-Vorpommern" },
+  { "code": "LUP", "city": "Ludwigslust-Parchim", "state": "Mecklenburg-Vorpommern" },
+  { "code": "MC", "city": "Malchin (Mecklenburgische Seenplatte)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "MSE", "city": "Mecklenburgische Seenplatte", "state": "Mecklenburg-Vorpommern" },
+  { "code": "MST", "city": "Mecklenburg-Strelitz", "state": "Mecklenburg-Vorpommern" },
+  { "code": "MÜR", "city": "Müritz (Mecklenburgische Seenplatte)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "NB", "city": "Neubrandenburg", "state": "Mecklenburg-Vorpommern" },
+  { "code": "NWM", "city": "Nordwestmecklenburg (Wismar)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "NZ", "city": "Neustrelitz (Mecklenburgische Seenplatte)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "PCH", "city": "Parchim (Ludwigslust-Parchim)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "PW", "city": "Pasewalk (Vorpommern-Greifswald)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "RDG", "city": "Ribnitz-Damgarten (Vorpommern-Rügen)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "ROS", "city": "Rostock (Landkreis)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "RÜG", "city": "Rügen (Vorpommern-Rügen)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "SBW", "city": "Strasburg (Vorpommern-Greifswald)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "SN", "city": "Schwerin", "state": "Mecklenburg-Vorpommern" },
+  { "code": "STB", "city": "Sternberg (Ludwigslust-Parchim)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "VG", "city": "Vorpommern-Greifswald", "state": "Mecklenburg-Vorpommern" },
+  { "code": "VR", "city": "Vorpommern-Rügen", "state": "Mecklenburg-Vorpommern" },
+  { "code": "WRN", "city": "Waren (Mecklenburgische Seenplatte)", "state": "Mecklenburg-Vorpommern" },
+  { "code": "AC", "city": "Aachen", "state": "Nordrhein-Westfalen" },
+  { "code": "BI", "city": "Bielefeld", "state": "Nordrhein-Westfalen" },
+  { "code": "BM", "city": "Bergheim (Rhein-Erft-Kreis)", "state": "Nordrhein-Westfalen" },
+  { "code": "BN", "city": "Bonn", "state": "Nordrhein-Westfalen" },
+  { "code": "BO", "city": "Bochum", "state": "Nordrhein-Westfalen" },
+  { "code": "BOR", "city": "Borken", "state": "Nordrhein-Westfalen" },
+  { "code": "BOT", "city": "Bottrop", "state": "Nordrhein-Westfalen" },
+  { "code": "CAS", "city": "Castrop-Rauxel", "state": "Nordrhein-Westfalen" },
+  { "code": "COE", "city": "Coesfeld", "state": "Nordrhein-Westfalen" },
+  { "code": "D", "city": "Düsseldorf", "state": "Nordrhein-Westfalen" },
+  { "code": "DN", "city": "Düren", "state": "Nordrhein-Westfalen" },
+  { "code": "DO", "city": "Dortmund", "state": "Nordrhein-Westfalen" },
+  { "code": "DU", "city": "Duisburg", "state": "Nordrhein-Westfalen" },
+  { "code": "E", "city": "Essen", "state": "Nordrhein-Westfalen" },
+  { "code": "EN", "city": "Ennepe-Ruhr-Kreis (Schwelm)", "state": "Nordrhein-Westfalen" },
+  { "code": "EU", "city": "Euskirchen", "state": "Nordrhein-Westfalen" },
+  { "code": "GE", "city": "Gelsenkirchen", "state": "Nordrhein-Westfalen" },
+  { "code": "GL", "city": "Bergisch Gladbach (Rheinisch-Bergischer Kreis)", "state": "Nordrhein-Westfalen" },
+  { "code": "GT", "city": "Gütersloh", "state": "Nordrhein-Westfalen" },
+  { "code": "HA", "city": "Hagen", "state": "Nordrhein-Westfalen" },
+  { "code": "HAM", "city": "Hamm", "state": "Nordrhein-Westfalen" },
+  { "code": "HER", "city": "Herne", "state": "Nordrhein-Westfalen" },
+  { "code": "HF", "city": "Herford", "state": "Nordrhein-Westfalen" },
+  { "code": "HS", "city": "Heinsberg", "state": "Nordrhein-Westfalen" },
+  { "code": "HSK", "city": "Hochsauerlandkreis (Meschede)", "state": "Nordrhein-Westfalen" },
+  { "code": "HX", "city": "Höxter", "state": "Nordrhein-Westfalen" },
+  { "code": "K", "city": "Köln", "state": "Nordrhein-Westfalen" },
+  { "code": "KR", "city": "Krefeld", "state": "Nordrhein-Westfalen" },
+  { "code": "LEV", "city": "Leverkusen", "state": "Nordrhein-Westfalen" },
+  { "code": "LIP", "city": "Lippe (Detmold)", "state": "Nordrhein-Westfalen" },
+  { "code": "LP", "city": "Lippstadt (Soest)", "state": "Nordrhein-Westfalen" },
+  { "code": "ME", "city": "Mettmann", "state": "Nordrhein-Westfalen" },
+  { "code": "MG", "city": "Mönchengladbach", "state": "Nordrhein-Westfalen" },
+  { "code": "MH", "city": "Mülheim an der Ruhr", "state": "Nordrhein-Westfalen" },
+  { "code": "MI", "city": "Minden (Minden-Lübbecke)", "state": "Nordrhein-Westfalen" },
+  { "code": "MS", "city": "Münster", "state": "Nordrhein-Westfalen" },
+  { "code": "NE", "city": "Neuss (Rhein-Kreis Neuss)", "state": "Nordrhein-Westfalen" },
+  { "code": "NRW", "city": "Landesregierung & Landtag NRW", "state": "Nordrhein-Westfalen" },
+  { "code": "OB", "city": "Oberhausen", "state": "Nordrhein-Westfalen" },
+  { "code": "PB", "city": "Paderborn", "state": "Nordrhein-Westfalen" },
+  { "code": "RE", "city": "Recklinghausen", "state": "Nordrhein-Westfalen" },
+  { "code": "RS", "city": "Remscheid", "state": "Nordrhein-Westfalen" },
+  { "code": "SI", "city": "Siegen (Siegen-Wittgenstein)", "state": "Nordrhein-Westfalen" },
+  { "code": "SO", "city": "Soest", "state": "Nordrhein-Westfalen" },
+  { "code": "SU", "city": "Siegburg (Rhein-Sieg-Kreis)", "state": "Nordrhein-Westfalen" },
+  { "code": "UN", "city": "Unna", "state": "Nordrhein-Westfalen" },
+  { "code": "VIE", "city": "Viersen", "state": "Nordrhein-Westfalen" },
+  { "code": "W", "city": "Wuppertal", "state": "Nordrhein-Westfalen" },
+  { "code": "WAF", "city": "Warendorf", "state": "Nordrhein-Westfalen" },
+  { "code": "WES", "city": "Wesel", "state": "Nordrhein-Westfalen" },
+  { "code": "AK", "city": "Altenkirchen", "state": "Rheinland-Pfalz" },
+  { "code": "AZ", "city": "Alzey (Alzey-Worms)", "state": "Rheinland-Pfalz" },
+  { "code": "AW", "city": "Ahrweiler (Bad Neuenahr-Ahrweiler)", "state": "Rheinland-Pfalz" },
+  { "code": "BIT", "city": "Bitburg (Eifelkreis Bitburg-Prüm)", "state": "Rheinland-Pfalz" },
+  { "code": "BIR", "city": "Birkenfeld", "state": "Rheinland-Pfalz" },
+  { "code": "COC", "city": "Cochem (Cochem-Zell)", "state": "Rheinland-Pfalz" },
+  { "code": "DÜW", "city": "Bad Dürkheim (an der Weinstraße)", "state": "Rheinland-Pfalz" },
+  { "code": "EMS", "city": "Bad Ems (Rhein-Lahn-Kreis)", "state": "Rheinland-Pfalz" },
+  { "code": "GER", "city": "Germersheim", "state": "Rheinland-Pfalz" },
+  { "code": "GOH", "city": "Goarshausen (Rhein-Lahn-Kreis)", "state": "Rheinland-Pfalz" },
+  { "code": "KA", "city": "Kirchheimbolanden (Donnersbergkreis)", "state": "Rheinland-Pfalz" },
+  { "code": "KL", "city": "Kaiserslautern", "state": "Rheinland-Pfalz" },
+  { "code": "KO", "city": "Koblenz", "state": "Rheinland-Pfalz" },
+  { "code": "KUS", "city": "Kusel", "state": "Rheinland-Pfalz" },
+  { "code": "LD", "city": "Landau in der Pfalz", "state": "Rheinland-Pfalz" },
+  { "code": "LU", "city": "Ludwigshafen am Rhein", "state": "Rheinland-Pfalz" },
+  { "code": "MZ", "city": "Mainz", "state": "Rheinland-Pfalz" },
+  { "code": "MYK", "city": "Mayen-Koblenz", "state": "Rheinland-Pfalz" },
+  { "code": "NR", "city": "Neuwied am Rhein", "state": "Rheinland-Pfalz" },
+  { "code": "NW", "city": "Neustadt an der Weinstraße", "state": "Rheinland-Pfalz" },
+  { "code": "PS", "city": "Pirmasens (Südwestpfalz)", "state": "Rheinland-Pfalz" },
+  { "code": "RP", "city": "Rhein-Pfalz-Kreis (Ludwigshafen)", "state": "Rheinland-Pfalz" },
+  { "code": "SIM", "city": "Simmern (Rhein-Hunsrück-Kreis)", "state": "Rheinland-Pfalz" },
+  { "code": "SÜW", "city": "Südliche Weinstraße (Landau)", "state": "Rheinland-Pfalz" },
+  { "code": "TR", "city": "Trier (Trier-Saarburg)", "state": "Rheinland-Pfalz" },
+  { "code": "WW", "city": "Westerwaldkreis (Montabaur)", "state": "Rheinland-Pfalz" },
+  { "code": "WO", "city": "Worms", "state": "Rheinland-Pfalz" },
+  { "code": "ZW", "city": "Zweibrücken", "state": "Rheinland-Pfalz" },
+  { "code": "HOM", "city": "Homburg (Saarpfalz-Kreis)", "state": "Saarland" },
+  { "code": "IGB", "city": "St. Ingbert (Saarpfalz-Kreis)", "state": "Saarland" },
+  { "code": "MZG", "city": "Merzig (Merzig-Wadern)", "state": "Saarland" },
+  { "code": "NK", "city": "Neunkirchen", "state": "Saarland" },
+  { "code": "SB", "city": "Saarbrücken", "state": "Saarland" },
+  { "code": "SLS", "city": "Saarlouis", "state": "Saarland" },
+  { "code": "VK", "city": "Völklingen (Regionalverband Saarbrücken)", "state": "Saarland" },
+  { "code": "WND", "city": "St. Wendel", "state": "Saarland" },
+  { "code": "ANA", "city": "Annaberg (Erzgebirgskreis)", "state": "Sachsen" },
+  { "code": "ASL", "city": "Aschersleben (rare in SN, mostly ST)", "state": "Sachsen" },
+  { "code": "AU", "city": "Aue (Erzgebirgskreis)", "state": "Sachsen" },
+  { "code": "BZ", "city": "Bautzen", "state": "Sachsen" },
+  { "code": "C", "city": "Chemnitz", "state": "Sachsen" },
+  { "code": "DD", "city": "Dresden", "state": "Sachsen" },
+  { "code": "DL", "city": "Döbeln (Mittelsachsen)", "state": "Sachsen" },
+  { "code": "DZ", "city": "Delitzsch (Nordsachsen)", "state": "Sachsen" },
+  { "code": "ERZ", "city": "Erzgebirgskreis (Annaberg-Buchholz)", "state": "Sachsen" },
+  { "code": "FG", "city": "Freiberg (Mittelsachsen)", "state": "Sachsen" },
+  { "code": "FLÖ", "city": "Flöha (Mittelsachsen)", "state": "Sachsen" },
+  { "code": "GC", "city": "Glauchau (Zwickau)", "state": "Sachsen" },
+  { "code": "GR", "city": "Görlitz", "state": "Sachsen" },
+  { "code": "GRH", "city": "Großenhain (Meißen)", "state": "Sachsen" },
+  { "code": "L", "city": "Leipzig", "state": "Sachsen" },
+  { "code": "LI", "city": "Leisnig (Mittelsachsen)", "state": "Sachsen" },
+  { "code": "MEI", "city": "Meißen", "state": "Sachsen" },
+  { "code": "MTL", "city": "Muldental (Grimma)", "state": "Sachsen" },
+  { "code": "MW", "city": "Mittweida (Mittelsachsen)", "state": "Sachsen" },
+  { "code": "NPL", "city": "Nauen (rarely used in SN)", "state": "Sachsen" },
+  { "code": "NY", "city": "Niesky (Görlitz)", "state": "Sachsen" },
+  { "code": "P", "city": "Pirna (Sächsische Schweiz-Osterzgebirge)", "state": "Sachsen" },
+  { "code": "PL", "city": "Plauen (Vogtlandkreis)", "state": "Sachsen" },
+  { "code": "PIR", "city": "Pirna", "state": "Sachsen" },
+  { "code": "RIE", "city": "Riesa (Meißen)", "state": "Sachsen" },
+  { "code": "RL", "city": "Rochlitz (Mittelsachsen)", "state": "Sachsen" },
+  { "code": "TDO", "city": "Torgau-Delitzsch (Nordsachsen)", "state": "Sachsen" },
+  { "code": "TG", "city": "Torgau (Nordsachsen)", "state": "Sachsen" },
+  { "code": "V", "city": "Vogtlandkreis (Plauen)", "state": "Sachsen" },
+  { "code": "Z", "city": "Zwickau", "state": "Sachsen" },
+  { "code": "ZI", "city": "Zittau (Görlitz)", "state": "Sachsen" },
+  { "code": "ABI", "city": "Anhalt-Bitterfeld (Köthen)", "state": "Sachsen-Anhalt" },
+  { "code": "ASL", "city": "Aschersleben (Salzlandkreis)", "state": "Sachsen-Anhalt" },
+  { "code": "AZE", "city": "Anhalt-Zerbst (Anhalt-Bitterfeld)", "state": "Sachsen-Anhalt" },
+  { "code": "BBG", "city": "Bernburg (Salzlandkreis)", "state": "Sachsen-Anhalt" },
+  { "code": "BK", "city": "Bördekreis (Haldensleben)", "state": "Sachsen-Anhalt" },
+  { "code": "BTF", "city": "Bitterfeld (Anhalt-Bitterfeld)", "state": "Sachsen-Anhalt" },
+  { "code": "DE", "city": "Dessau-Roßlau", "state": "Sachsen-Anhalt" },
+  { "code": "GA", "city": "Gardelegen (Altmarkkreis Salzwedel)", "state": "Sachsen-Anhalt" },
+  { "code": "GNT", "city": "Genthin (Jerichower Land)", "state": "Sachsen-Anhalt" },
+  { "code": "HAL", "city": "Halle (Saale)", "state": "Sachsen-Anhalt" },
+  { "code": "HBS", "city": "Halberstadt (Harz)", "state": "Sachsen-Anhalt" },
+  { "code": "HZ", "city": "Harz (Halberstadt)", "state": "Sachsen-Anhalt" },
+  { "code": "JL", "city": "Jerichower Land (Burg)", "state": "Sachsen-Anhalt" },
+  { "code": "KLZ", "city": "Klötze (Altmarkkreis Salzwedel)", "state": "Sachsen-Anhalt" },
+  { "code": "KÖT", "city": "Köthen (Anhalt-Bitterfeld)", "state": "Sachsen-Anhalt" },
+  { "code": "MD", "city": "Magdeburg", "state": "Sachsen-Anhalt" },
+  { "code": "MER", "city": "Merseburg (Saalekreis)", "state": "Sachsen-Anhalt" },
+  { "code": "MQ", "city": "Merseburg-Querfurt (Saalekreis)", "state": "Sachsen-Anhalt" },
+  { "code": "MSH", "city": "Mansfeld-Südharz (Sangerhausen)", "state": "Sachsen-Anhalt" },
+  { "code": "QK", "city": "Saalekreis (Merseburg)", "state": "Sachsen-Anhalt" },
+  { "code": "QLB", "city": "Quedlinburg (Harz)", "state": "Sachsen-Anhalt" },
+  { "code": "SAW", "city": "Altmarkkreis Salzwedel", "state": "Sachsen-Anhalt" },
+  { "code": "SBK", "city": "Schönebeck (Salzlandkreis)", "state": "Sachsen-Anhalt" },
+  { "code": "SDL", "city": "Stendal", "state": "Sachsen-Anhalt" },
+  { "code": "SK", "city": "Saalekreis", "state": "Sachsen-Anhalt" },
+  { "code": "SLK", "city": "Salzlandkreis (Bernburg)", "state": "Sachsen-Anhalt" },
+  { "code": "ST", "city": "Steinfurt (Note: Rare in ST, mostly used in NRW)", "state": "Sachsen-Anhalt" },
+  { "code": "SGH", "city": "Sangerhausen (Mansfeld-Südharz)", "state": "Sachsen-Anhalt" },
+  { "code": "WB", "city": "Wittenberg", "state": "Sachsen-Anhalt" },
+  { "code": "WR", "city": "Wernigerode (Harz)", "state": "Sachsen-Anhalt" },
+  { "code": "ZE", "city": "Zerbst (Anhalt-Bitterfeld)", "state": "Sachsen-Anhalt" },
+  { "code": "ECK", "city": "Eckernförde (Rendsburg-Eckernförde)", "state": "Schleswig-Holstein" },
+  { "code": "EUT", "city": "Eutin (Ostholstein)", "state": "Schleswig-Holstein" },
+  { "code": "FL", "city": "Flensburg", "state": "Schleswig-Holstein" },
+  { "code": "HEI", "city": "Heide (Dithmarschen)", "state": "Schleswig-Holstein" },
+  { "code": "HL", "city": "Hansestadt Lübeck", "state": "Schleswig-Holstein" },
+  { "code": "IZ", "city": "Itzehoe (Steinburg)", "state": "Schleswig-Holstein" },
+  { "code": "KI", "city": "Kiel", "state": "Schleswig-Holstein" },
+  { "code": "MED", "city": "Meldorf (Dithmarschen)", "state": "Schleswig-Holstein" },
+  { "code": "NF", "city": "Nordfriesland (Husum)", "state": "Schleswig-Holstein" },
+  { "code": "NMS", "city": "Neumünster", "state": "Schleswig-Holstein" },
+  { "code": "OD", "city": "Oldesloe (Stormarn)", "state": "Schleswig-Holstein" },
+  { "code": "OH", "city": "Ostholstein (Eutin)", "state": "Schleswig-Holstein" },
+  { "code": "PI", "city": "Pinneberg", "state": "Schleswig-Holstein" },
+  { "code": "PLÖ", "city": "Plön", "state": "Schleswig-Holstein" },
+  { "code": "RD", "city": "Rendsburg (Rendsburg-Eckernförde)", "state": "Schleswig-Holstein" },
+  { "code": "RZ", "city": "Ratzeburg (Herzogtum Lauenburg)", "state": "Schleswig-Holstein" },
+  { "code": "SE", "city": "Segeberg (Bad Segeberg)", "state": "Schleswig-Holstein" },
+  { "code": "SL", "city": "Schleswig (Schleswig-Flensburg)", "state": "Schleswig-Holstein" },
+  { "code": "ABG", "city": "Altenburger Land", "state": "Thüringen" },
+  { "code": "AP", "city": "Apolda (Weimarer Land)", "state": "Thüringen" },
+  { "code": "EF", "city": "Erfurt", "state": "Thüringen" },
+  { "code": "EIC", "city": "Eichsfeld (Heilbad Heiligenstadt)", "state": "Thüringen" },
+  { "code": "ESA", "city": "Eisenach (Wartburgkreis)", "state": "Thüringen" },
+  { "code": "G", "city": "Gera", "state": "Thüringen" },
+  { "code": "GTH", "city": "Gotha", "state": "Thüringen" },
+  { "code": "GRZ", "city": "Greiz", "state": "Thüringen" },
+  { "code": "HIG", "city": "Heiligenstadt (Eichsfeld)", "state": "Thüringen" },
+  { "code": "IK", "city": "Ilm-Kreis (Arnstadt)", "state": "Thüringen" },
+  { "code": "J", "city": "Jena", "state": "Thüringen" },
+  { "code": "KYF", "city": "Kyffhäuserkreis (Sondershausen)", "state": "Thüringen" },
+  { "code": "LBS", "city": "Lobenstein (Saale-Orla-Kreis)", "state": "Thüringen" },
+  { "code": "LSZ", "city": "Langensalza (Unstrut-Hainich-Kreis)", "state": "Thüringen" },
+  { "code": "MGN", "city": "Meiningen (Schmalkalden-Meiningen)", "state": "Thüringen" },
+  { "code": "MHL", "city": "Mühlhausen (Unstrut-Hainich-Kreis)", "state": "Thüringen" },
+  { "code": "NDH", "city": "Nordhausen", "state": "Thüringen" },
+  { "code": "POB", "city": "Pößneck (Saale-Orla-Kreis)", "state": "Thüringen" },
+  { "code": "SHL", "city": "Suhl", "state": "Thüringen" },
+  { "code": "SLZ", "city": "Bad Salzungen (Wartburgkreis)", "state": "Thüringen" },
+  { "code": "SM", "city": "Schmalkalden-Meiningen", "state": "Thüringen" },
+  { "code": "SÖM", "city": "Sömmerda", "state": "Thüringen" },
+  { "code": "SON", "city": "Sonneberg", "state": "Thüringen" },
+  { "code": "SOK", "city": "Saale-Orla-Kreis (Schleiz)", "state": "Thüringen" },
+  { "code": "SHK", "city": "Saale-Holzland-Kreis (Eisenberg)", "state": "Thüringen" },
+  { "code": "UH", "city": "Unstrut-Hainich-Kreis (Mühlhausen)", "state": "Thüringen" },
+  { "code": "WAK", "city": "Wartburgkreis (Bad Salzungen)", "state": "Thüringen" },
+  { "code": "WE", "city": "Weimar", "state": "Thüringen" }
+];
+
+    let correct = 0;
+    let total = 0;
+    let currentPlate = {};
+    const GAME_LIMIT = 20;
+
+    function init() { updateHighScoreDisplay(); resetGame(); }
+     
+    function resetGame() {
+        correct = 0; total = 0;
+        document.getElementById('results-area').classList.add('hidden');
+        document.getElementById('quiz-area').classList.remove('hidden');
+        updateUI();
+        showNext();
+    }
+
+    function showNext() {
+    if (total >= GAME_LIMIT) { showEndScreen(); return; }
+    
+    const pDisplay = document.getElementById('plate-display');
+    pDisplay.classList.remove('animate-shake', 'animate-glow');
+    document.getElementById('feedback').innerText = "";
+    
+    // 1. Pick the correct plate
+    currentPlate = plates[Math.floor(Math.random() * plates.length)];
+    pDisplay.innerText = currentPlate.code;
+
+    // 2. FIND "LETTER MATCH" DISTRACTORS
+    // We get the first letter of the current code (e.g., "B" from "BAD")
+    const firstLetter = currentPlate.code.charAt(0);
+
+    // Filter the whole list for other cities whose code starts with the same letter
+    let similarPlates = plates.filter(p => 
+        p.code.startsWith(firstLetter) && p.city !== currentPlate.city
+    );
+
+    let choices = [currentPlate.city];
+
+    // 3. Fill choices with these similar-letter cities first
+    while (choices.length < 4 && similarPlates.length > 0) {
+        let randomIndex = Math.floor(Math.random() * similarPlates.length);
+        // Remove from list so we don't pick the same distractor twice
+        let randomCity = similarPlates.splice(randomIndex, 1)[0].city;
+        if (!choices.includes(randomCity)) {
+            choices.push(randomCity);
+        }
+    }
+
+    // 4. Emergency Backup: If there aren't enough "B" cities, fill with random ones
+    while (choices.length < 4) {
+        let randomCity = plates[Math.floor(Math.random() * plates.length)].city;
+        if (!choices.includes(randomCity)) {
+            choices.push(randomCity);
+        }
+    }
+
+    // 5. Shuffle and Render
+    choices.sort(() => Math.random() - 0.5);
+
+    const container = document.getElementById('options-container');
+    container.innerHTML = '';
+    choices.forEach(c => {
+        const b = document.createElement('button');
+        b.innerText = c;
+        b.onclick = () => checkAnswer(c);
+        container.appendChild(b);
+    });
+    
+    updateUI();
+}
+
+    function checkAnswer(selected) {
+        const btns = document.querySelectorAll('#options-container button');
+        btns.forEach(b => b.disabled = true);
+        const pDisplay = document.getElementById('plate-display');
+        total++;
+        
+        if (selected === currentPlate.city) {
+            correct++;
+            playSuccessSound();            
+            document.getElementById('feedback').innerText = "Richtig! ✔";
+            document.getElementById('feedback').style.color = "#2ecc71";
+            pDisplay.classList.add('animate-glow');
+        } else {
+            playErrorSound();
+            document.getElementById('feedback').innerText = "Falsch! " + currentPlate.city;
+            document.getElementById('feedback').style.color = "#e74c3c";
+            pDisplay.classList.add('animate-shake');
+        }
+        setTimeout(showNext, 1200);
+    }
+
+    function updateUI() {
+        document.getElementById('q-num').innerText = Math.min(total + 1, GAME_LIMIT);
+        let pct = total === 0 ? 0 : Math.round((correct / total) * 100);
+        document.getElementById('percent').innerText = pct;
+        document.getElementById('progress-bar').style.width = (total / GAME_LIMIT) * 100 + "%";
+    }
+
+    function showEndScreen() {
+        checkHighScore();
+        document.getElementById('quiz-area').classList.add('hidden');
+        document.getElementById('results-area').classList.remove('hidden');
+        document.getElementById('final-correct').innerText = correct;
+    }
+
+    window.onload = init;
+
+// Function to play a Louder, Sharper "Ping" (Correct)
+function playSuccessSound() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    // Using 'triangle' for a punchier start than 'sine'
+    osc.type = 'triangle'; 
+    osc.frequency.setValueAtTime(880, ctx.currentTime); // High A5
+    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.1); // Slide up to E6
+    
+    // Increase volume to 0.3 (was 0.1)
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+}
+
+// Function to play a Harsher "Buzzer" (Incorrect)
+function playErrorSound() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    // 'square' is the harshest, most "retro-game" buzzer sound
+    osc.type = 'square'; 
+    osc.frequency.setValueAtTime(110, ctx.currentTime); // Low A2
+    
+    // Rapidly drop frequency for a "thud" effect
+    osc.frequency.linearRampToValueAtTime(55, ctx.currentTime + 0.2); 
+    
+    // Increase volume to 0.25 (Square waves are naturally louder)
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+}
+
+// Load the high score from the browser's memory
+function updateHighScoreDisplay() {
+    const savedBest = localStorage.getItem('plateQuizBest') || 0;
+    document.getElementById('high-score-display').innerText = `Best: ${savedBest}%`;
+}
+
+// Call this at the end of showEndScreen()
+function checkHighScore() {
+    const currentPct = Math.round((correct / total) * 100);
+    const savedBest = localStorage.getItem('plateQuizBest') || 0;
+
+    if (currentPct > savedBest) {
+        localStorage.setItem('plateQuizBest', currentPct);
+        // Add a little extra feedback
+        document.getElementById('feedback').innerText = "NEW PERSONAL BEST! 🏆";
+        document.getElementById('feedback').style.color = "#f1c40f";
+    }
+    updateHighScoreDisplay();
+}
+
+// --- NAVIGATION LOGIC ---
+function showMenu() {
+    hideAll();
+    document.getElementById('menu-area').classList.remove('hidden');
+    updateHighScoreDisplay();
+}
+
+function startQuiz() {
+    hideAll();
+    document.getElementById('quiz-area').classList.remove('hidden');
+    resetGame();
+}
+
+function openSearch() {
+    hideAll();
+    document.getElementById('search-area').classList.remove('hidden');
+    document.getElementById('search-input').value = ""; // Clear old search
+    document.getElementById('search-result').innerText = "Tippe einen Code...";
+    document.getElementById('search-input').focus();
+}
+
+function hideAll() {
+    document.getElementById('menu-area').classList.add('hidden');
+    document.getElementById('quiz-area').classList.add('hidden');
+    document.getElementById('search-area').classList.add('hidden');
+    document.getElementById('results-area').classList.add('hidden');
+}
+
+// --- SEARCH ENGINE ---
+function handleSearch() {
+    const input = document.getElementById('search-input').value.toUpperCase().trim();
+    const resultDiv = document.getElementById('search-result');
+    
+    if (input === "") {
+        resultDiv.innerText = "Tippe einen Code...";
+        return;
+    }
+
+    // Find the plate that matches the code exactly
+    const found = plates.find(p => p.code.toUpperCase() === input);
+
+    if (found) {
+        resultDiv.innerHTML = `<span style="color: #2ecc71;">${found.city}</span><br><small style="font-size: 0.8rem; color: #bdc3c7;">(${found.state})</small>`;
+    } else {
+        resultDiv.innerText = "Nicht gefunden";
+    }
+}
+
+</script>
+</body>
+</html>
